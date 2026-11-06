@@ -127,9 +127,7 @@
     </div>
 
     <div>
-      <audio id="bg-audio" loop preload="auto">
-        <source src="song.mp3" type="audio/mpeg">
-      </audio>
+      <audio src="song.mp3" autoplay loop controls></audio>
     </div>
   </main>
 
@@ -430,30 +428,5 @@
       startScene();
     })();
   </script>
-
-  <script>
-    const bgAudio = document.getElementById("bg-audio");
-
-    // Start playing as soon as the user clicks or taps anywhere on the screen
-    const enableAudio = () => {
-      if (bgAudio && bgAudio.paused) {
-        bgAudio.play().catch((err) => {
-          console.warn("Audio waiting for user gesture:", err);
-        });
-      }
-      window.removeEventListener("pointerdown", enableAudio);
-    };
-
-    window.addEventListener("pointerdown", enableAudio);
-
-    // Also trigger if they click the replay animation button
-    const replayBtn = document.getElementById("replay");
-    if (replayBtn) {
-      replayBtn.addEventListener("click", () => {
-        if (bgAudio) bgAudio.play().catch(() => {});
-      });
-    }
-  </script>
-  
 </body>
 </html>
