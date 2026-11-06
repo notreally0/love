@@ -430,5 +430,14 @@
       startScene();
     })();
   </script>
+
+  <script>
+const music = document.getElementById("bgMusic");
+
+document.addEventListener("click", () => {
+    music.play().catch(console.error);
+}, { once: true });
+</script>
+  
 </body>
 </html>
