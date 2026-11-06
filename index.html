@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#060208">
+  <title>Love Heart</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #000000;
+      color: #fff3f5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 280px;
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow-x: hidden;
+      background: #000000;
+    }
+
+    main {
+      width: min(100%, 880px);
+      padding: 28px 20px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    header { text-align: center; }
+
+    h1 {
+      margin: 0;
+      color: #fff1f4;
+      font-size: clamp(25px, 5vw, 36px);
+      font-weight: 600;
+      letter-spacing: -.035em;
+    }
+
+    .intro {
+      margin: 7px 0 0;
+      color: #f59abe;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .artwork {
+      width: min(100%, 800px);
+      aspect-ratio: 1;
+      overflow: hidden;
+      border-radius: 16px;
+      background: #000000;
+      box-shadow: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .controls {
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    button {
+      min-height: 40px;
+      padding: 0 17px;
+      border: 1px solid rgba(54, 54, 54, 0.38);
+      border-radius: 999px;
+      background: #000000;
+      color: #ffe7ed;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
+    }
+
+    button:hover {
+      border-color: rgba(255, 255, 255, 0.7);
+      background: #000000;
+    }
+
+    button:active { transform: scale(.97); }
+
+    button:focus-visible {
+      outline: 2px solid #ffffff;
+      outline-offset: 3px;
+    }
+
+    @media (max-width: 520px) {
+      main { padding: 22px 14px 18px; gap: 11px; }
+      .artwork { border-radius: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; }
+      button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>I Love You So Much</h1>
+      <p class="intro">Even if I have to say it a thousand times, I will never stop telling you that I love you.  </p>
+    </header>
+
+    <div class="artwork">
+      <canvas id="heart" width="800" height="800" role="img"
+        aria-label="A heart formed from the words I love you in twenty languages, appearing one phrase at a time and softly shimmering."></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="replay" type="button">Replay animation</button>
+    </div>
+
+    <div>
+      <audio src="song.mp3" loop autoplay></audio>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const WIDTH = 800;
+      const HEIGHT = 800;
+      const SC = 21;
+      const OY = 20;
+      const DURATION = 35_000;
+      const TICK = 16;
+      const ANIM = 42;
+      const LIFT = 34;
+      const GAP = 7;
+      const SIZES = [9, 10, 11, 12];
+      const FONT = "Arial, Helvetica, sans-serif";
+      const BG = "#060208";
+      const PHRASES = [
+        "I love you", "Seni seviyorum", "Te amo", "Je t'aime",
+        "Ich liebe dich", "Ti amo", "Eu te amo", "Я тебя люблю",
+        "사랑해", "愛してる", "我爱你", "मैं तुमसे प्यार करता हूँ",
+        "Σ' αγαπώ", "Ik hou van jou", "Jag älskar dig", "Kocham cię",
+        "ฉันรักเธอ", "Anh yêu em", "Aku cinta kamu", "Я тебе кохаю"
+      ];
+
+      const canvas = document.getElementById("heart");
+      const ctx = canvas.getContext("2d");
+      const replayButton = document.getElementById("replay");
+      const bgRgb = [1, 3, 5].map(i => parseInt(BG.slice(i, i + 2), 16) / 255);
+      const flashRgb = [1, .78, .78];
+      let cssWidth = 0;
+      let frameHandle = 0;
+
+      function seededRandom(seed) {
+        let state = seed >>> 0;
+        return () => {
+          state += 0x6D2B79F5;
+          let value = state;
+          value = Math.imul(value ^ (value >>> 15), value | 1);
+          value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+          return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function mix(a, b, amount) {
+        return a.map((value, i) => value + (b[i] - value) * amount);
+      }
+
+      function dim(color, amount) {
+        return color.map(value => value * amount);
+      }
+
+      function toHex(color) {
+        return "#" + color.map(value => {
+          const channel = Math.round(Math.max(0, Math.min(1, value)) * 255);
+          return channel.toString(16).padStart(2, "0");
+        }).join("");
+      }
+
+      function heart(angle) {
+        const x = 16 * Math.sin(angle) ** 3;
+        const y = 13 * Math.cos(angle)
+          - 5 * Math.cos(2 * angle)
+          - 2 * Math.cos(3 * angle)
+          - Math.cos(4 * angle);
+        return [x * SC, y * SC + OY];
+      }
+
+      const polygon = Array.from({ length: 720 }, (_, i) => heart(2 * Math.PI * i / 720));
+      const edges = polygon.map((point, i) => [point, polygon[(i + 1) % polygon.length]]);
+      const yValues = polygon.map(point => point[1]);
+      const YMAX = Math.max(...yValues);
+      const YMIN = Math.min(...yValues);
+      const CY = (YMAX + YMIN) / 2;
+
+      function spans(y) {
+        const xs = [];
+        for (const [[x1, y1], [x2, y2]] of edges) {
+          if ((y1 <= y && y < y2) || (y2 <= y && y < y1)) {
+            xs.push(x1 + (y - y1) * (x2 - x1) / (y2 - y1));
+          }
+        }
+        xs.sort((a, b) => a - b);
+        const result = [];
+        for (let i = 0; i + 1 < xs.length; i += 2) result.push([xs[i], xs[i + 1]]);
+        return result;
+      }
+
+      function intersect(aSpans, bSpans, minimumWidth) {
+        const result = [];
+        for (const a of aSpans) {
+          for (const b of bSpans) {
+            const lo = Math.max(a[0], b[0]);
+            const hi = Math.min(a[1], b[1]);
+            if (hi - lo > minimumWidth) result.push([lo, hi]);
+          }
+        }
+        return result;
+      }
+
+      function phraseCycle(random) {
+        let order = [];
+        let index = 0;
+        return () => {
+          if (index >= order.length) {
+            order = PHRASES.slice();
+            for (let i = order.length - 1; i > 0; i--) {
+              const j = Math.floor(random() * (i + 1));
+              [order[i], order[j]] = [order[j], order[i]];
+            }
+            index = 0;
+          }
+          return order[index++];
+        };
+      }
+
+      function build(ctx, textScale, random) {
+        const sizes = SIZES.map(size => size * textScale);
+        const rowHeight = Math.max(...sizes.map(size => size * 1.2)) + 4 * textScale;
+        const halfRow = rowHeight / 2;
+        const nextPhrase = phraseCycle(random);
+        const placed = [];
+        const minSpan = 14 * textScale;
+        const gap = GAP * textScale;
+        const pad = 4 * textScale;
+
+        const measure = (text, size) => {
+          ctx.font = `700 ${size}px ${FONT}`;
+          return ctx.measureText(text).width;
+        };
+
+        for (let y = YMAX - halfRow; y > YMIN + halfRow; y -= rowHeight) {
+          const row = intersect(spans(y + halfRow), spans(y - halfRow), minSpan);
+          for (const [initialLo, initialHi] of row) {
+            const lo = initialLo + pad;
+            const hi = initialHi - pad;
+            let cursor = lo + random() * 8 * textScale;
+            const line = [];
+
+            while (true) {
+              let fit = null;
+              for (let attempt = 0; attempt < 10; attempt++) {
+                const text = nextPhrase();
+                const size = sizes[Math.floor(random() * sizes.length)];
+                const width = measure(text, size);
+                if (cursor + width <= hi) {
+                  fit = { text, size, width };
+                  break;
+                }
+              }
+              if (!fit) break;
+              line.push({ x: cursor + fit.width / 2, ...fit });
+              cursor += fit.width + gap;
+            }
+
+            if (!line.length) continue;
+            if (line.length > 1) {
+              const leftover = hi - (line[line.length - 1].x + line[line.length - 1].width / 2);
+              line.forEach((item, i) => { item.x += leftover * i / (line.length - 1); });
+            } else {
+              line[0].x = (lo + hi) / 2;
+            }
+
+            line.forEach((item, i) => {
+              placed.push({ x: item.x, y, text: item.text, size: item.size,
+                edge: i === 0 || i === line.length - 1 });
+            });
+          }
+        }
+
+        const wine = [.58, 0, .09];
+        const crimson = [.90, .05, .14];
+        const blood = [.98, .10, .16];
+        for (const item of placed) {
+          const radius = Math.min(1, Math.hypot(item.x / (16 * SC), (item.y - CY) / (14.5 * SC)));
+          let color = mix(wine, crimson, .25 + .75 * radius);
+          color = mix(color, blood, random() * .35 + (item.edge ? .3 : 0));
+          item.color = color.map(value => Math.min(1, value));
+          item.radius = radius;
+          item.sortOrder = random();
+        }
+
+        const outer = placed.filter(item => item.edge);
+        const inner = placed.filter(item => !item.edge);
+        outer.sort((a, b) => (Math.atan2(a.x, a.y - CY) + Math.PI * 2) % (Math.PI * 2)
+          - (Math.atan2(b.x, b.y - CY) + Math.PI * 2) % (Math.PI * 2));
+        inner.sort((a, b) => (-a.radius + a.sortOrder * .08) - (-b.radius + b.sortOrder * .08));
+        return { order: outer.concat(inner), random, textScale };
+      }
+
+      function paint(text, x, y, size, color) {
+        ctx.font = `700 ${size}px ${FONT}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = toHex(color);
+        ctx.fillText(text, x, y);
+      }
+
+      function startScene() {
+        cancelAnimationFrame(frameHandle);
+        const width = canvas.getBoundingClientRect().width;
+        if (!width) return;
+        cssWidth = width;
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(width * dpr);
+        const scale = width / WIDTH;
+        ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+        const scene = build(ctx, 1 / scale, seededRandom(11));
+        const { order, random, textScale } = scene;
+        const active = [];
+        const complete = [];
+        const spawnInterval = DURATION / Math.max(1, order.length);
+        const animationLength = ANIM * TICK;
+        const lift = LIFT * textScale;
+        const startTime = performance.now();
+        let nextIndex = 0;
+        let nextShimmerAt = null;
+
+        function spawn(item, now) {
+          active.push({ ...item,
+            px: WIDTH / 2 + item.x,
+            py: HEIGHT / 2 - (item.y - CY),
+            dx: (random() * 20 - 10) * textScale,
+            started: now,
+            lift
+          });
+        }
+
+        function frame(now) {
+          while (nextIndex < order.length && now >= startTime + nextIndex * spawnInterval) {
+            spawn(order[nextIndex++], now);
+          }
+
+          const stillActive = [];
+          for (const item of active) {
+            if (now - item.started >= animationLength) {
+              item.flashUntil = 0;
+              complete.push(item);
+            } else {
+              stillActive.push(item);
+            }
+          }
+          active.length = 0;
+          active.push(...stillActive);
+
+          if (nextIndex === order.length && active.length === 0) {
+            if (nextShimmerAt === null) nextShimmerAt = now;
+            if (now >= nextShimmerAt && complete.length) {
+              const item = complete[Math.floor(random() * complete.length)];
+              item.flashUntil = now + 260;
+              nextShimmerAt = now + 140;
+            }
+          }
+
+          ctx.clearRect(0, 0, WIDTH, HEIGHT);
+          for (const item of complete) {
+            const x = item.px;
+            const y = item.py;
+            paint(item.text, x + 2 * textScale, y + 3 * textScale,
+              item.size, dim(item.color, .30));
+            paint(item.text, x, y, item.size + textScale, dim(item.color, .20));
+            const color = now < item.flashUntil ? mix(item.color, flashRgb, .6) : item.color;
+            paint(item.text, x, y, item.size, color);
+          }
+
+          for (const item of active) {
+            const u = Math.max(0, Math.min(1, (now - item.started) / animationLength));
+            const easing = 1 - (1 - u) ** 3;
+            const hover = (1 - easing) * item.lift;
+            const x = item.px + item.dx * (1 - easing);
+            const y = item.py - hover;
+            paint(item.text, item.px + 2 * textScale, item.py + 3 * textScale,
+              item.size, mix(bgRgb, dim(item.color, .30), easing));
+            paint(item.text, x, y, item.size + textScale,
+              mix(bgRgb, dim(item.color, .20), easing * easing));
+            const flash = .75 * Math.sin(Math.PI * Math.max(0, Math.min(1, (u - .55) / .45)));
+            const color = mix(mix(bgRgb, item.color, easing ** 1.5), flashRgb, flash);
+            paint(item.text, x, y, item.size, color);
+          }
+
+          frameHandle = requestAnimationFrame(frame);
+        }
+
+        frameHandle = requestAnimationFrame(frame);
+      }
+
+      replayButton.addEventListener("click", startScene);
+      const resizeObserver = new ResizeObserver(() => {
+        const width = canvas.getBoundingClientRect().width;
+        if (Math.abs(width - cssWidth) > 1) startScene();
+      });
+      resizeObserver.observe(canvas);
+      startScene();
+    })();
+  </script>
+</body>
+</html>
