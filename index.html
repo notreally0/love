@@ -99,6 +99,18 @@
       outline-offset: 3px;
     }
 
+    #start {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      width: 100%;
+      border: 0;
+      border-radius: 0;
+      background: #000;
+      color: #ffe7ed;
+      font-size: 22px;
+    }
+
     @media (max-width: 520px) {
       main { padding: 22px 14px 18px; gap: 11px; }
       .artwork { border-radius: 10px; }
@@ -111,6 +123,7 @@
   </style>
 </head>
 <body>
+  <button id="start" type="button">Tap to open 💌</button>
   <main>
     <header>
       <h1>I Love You So Much</h1>
@@ -127,7 +140,7 @@
     </div>
 
     <div>
-      <audio src="song.mp3" autoplay loop controls></audio>
+      <audio src="song.mp3" loop ></audio>
     </div>
   </main>
 
@@ -426,6 +439,14 @@
       });
       resizeObserver.observe(canvas);
       startScene();
+
+      const audio = document.querySelector("audio");
+      const startBtn = document.getElementById("start");
+      startBtn.addEventListener("click", () => {
+        audio.play().catch(() => {});
+        startScene();
+        startBtn.remove();
+      });
     })();
   </script>
 </body>
